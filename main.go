@@ -1,99 +1,41 @@
 package main
 
 import (
-	"fmt"
-	"os"
-	"strings"
-	"sync"
+	"math"
 
-	"github.com/domainr/whois"
+	"github.com/cheggaaa/pb/v3"
+	"github.com/gammazero/workerpool"
 )
 
-func toLetters(num int) string {
-	power := num / 26
-	mod := num % 26
+func getRange(length int) (start int, end int) {
+	var s int;
+	var e int;
 
-	var output string
-
-	if mod > 0 {
-		output = string('A' - 1 + mod)
-	} else {
-		power -= 1
-		output = string('Z')
+	for i := 0; i < length; i++ {
+		s += int(math.Pow(26, float64(i)))
 	}
 
-	var returnValue string
-
-	if power > 0 {
-		returnValue = toLetters(power) + output
-	} else {
-		returnValue = output
+	for i := 0; i < length + 1; i++ {
+		e += int(math.Pow(26, float64(i)))
 	}
+	e--
 
-	return strings.ToLower(returnValue)
-}
-
-func appendFile(value string) {
-	file, err := os.OpenFile("names.log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-	if err != nil {
-		fmt.Println("\n-------------------------------")
-		fmt.Println("Write to file failed.")
-		fmt.Println(value)
-		fmt.Println("-------------------------------\n")
-	}
-	defer file.Close()
-	if _, err := file.WriteString(value + "\n"); err != nil {
-		fmt.Println("\n-------------------------------")
-		fmt.Println("Write to file failed.")
-		fmt.Println(value)
-		fmt.Println("-------------------------------\n")
-	}
-}
-
-func nameAvailable(name string) bool {
-	request, err := whois.NewRequest(name)
-
-	if err != nil {
-		fmt.Println("\n-------------------------------")
-		fmt.Println("Request failed.")
-		fmt.Println(name)
-		fmt.Println("-------------------------------\n")
-		return false
-	}
-
-	response, err := whois.DefaultClient.Fetch(request)
-
-	if err != nil {
-		fmt.Println("\n-------------------------------")
-		fmt.Println("Response failed.")
-		fmt.Println(name)
-		fmt.Println("-------------------------------\n")
-		return false
-	}
-
-	str := response.String()
-	return strings.HasPrefix(str, "")
+	return s, e
 }
 
 func main() {
-	max := 100
-	min := 27
-	var wg sync.WaitGroup
-
-	wg.Add(max - min)
-
-	for i := min; i < max; i++ {
-		go func(i int) {
-			defer wg.Done()
-			host := toLetters(i)
-			fmt.Println(i, host)
-			domain := host + ".io"
-			available := nameAvailable(domain)
-			if available {
-				appendFile(domain)
-			}
-		}(i)
+	start, end := getRange(2)
+	bar := pb.StartNew(end - start + 1)
+	wp := workerpool.New(5)
+	for i := start; i <= end; i++ {
+		i := i
+		wp.Submit(func() {
+			name := toLetters(i)
+			checkName(name + "tide", func() {
+				bar.Increment()
+			})
+		})
 	}
-
-	wg.Wait()
+	wp.StopWait()
+	bar.Finish()
 }
